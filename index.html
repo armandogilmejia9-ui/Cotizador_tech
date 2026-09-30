@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Cotización Dinámica - Curiel Tech</title>
+<!-- Librería para leer archivos Excel xlsx directamente en navegador -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+    @page {
+        size: letter;
+        margin: 0;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        color: #2c3e50;
+        background-color: #ffffff;
+        font-size: 11pt;
+        line-height: 1.4;
+        padding: 40px 45px;
+        position: relative;
+    }
+
+    /* Panel de Carga de Excel (Sombra/Flotante) */
+    .excel-import-panel {
+        position: fixed;
+        top: 15px;
+        right: 15px;
+        background: #0f1f38;
+        color: #ffffff;
+        padding: 10px 15px;
+        border-radius: 6px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        z-index: 10000;
+        font-size: 9pt;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .excel-import-panel input[type="file"] {
+        display: none;
+    }
+
+    .btn-import {
+        background-color: #b55b32;
+        color: #fff;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: background 0.2s;
+    }
+
+    .btn-import:hover {
+        background-color: #d86b3c;
+    }
+
+    /* Estilos para elementos editables */
+    [contenteditable="true"] {
+        outline: none;
+        transition: background-color 0.2s, border-color 0.2s;
+        border-radius: 3px;
+        padding: 1px 3px;
+        display: inline-block;
+    }
+
+    [contenteditable="true"]:hover {
+        background-color: #f0f4f8;
+    }
+
+    [contenteditable="true"]:focus {
+        background-color: #ffffff;
+        box-shadow: 0 0 0 2px #b55b32;
+    }
+
+    /* Adorno Superior */
+    .top-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 12px;
+        background: linear-gradient(135deg, #0f1f38 75%, #b55b32 75%);
+    }
+
+    /* Encabezado */
+    .header {
+        display: block;
+        margin-top: 15px;
+        margin-bottom: 25px;
+    }
+
+    .header-left {
+        width: 50%;
+        float: left;
+    }
+
+    .doc-title {
+        font-size: 26pt;
+        font-weight: 800;
+        color: #b55b32;
+        letter-spacing: 2px;
+        margin-bottom: 15px;
+    }
+
+    .meta-table {
+        width: 100%;
+        font-size: 9.5pt;
+        border-collapse: collapse;
+    }
+
+    .meta-table td {
+        padding: 3px 0;
+    }
+
+    .meta-label {
+        font-weight: 600;
+        color: #0f1f38;
+        width: 40%;
+    }
+
+    .meta-value {
+        color: #333333;
+    }
+
+    .header-right {
+        width: 45%;
+        float: right;
+        border-left: 2px solid #b55b32;
+        padding-left: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        min-height: 80px;
+    }
+
+    .logo-img {
+        max-width: 220px;
+        max-height: 90px;
+        object-fit: contain;
+    }
+
+    .clearfix::after {
+        content: "";
+        clear: both;
+        display: table;
+    }
+
+    /* Secciones de Información */
+    .info-container {
+        margin-bottom: 25px;
+    }
+
+    .info-box {
+        width: 48%;
+        border: 1px solid #dcdfe6;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .info-box.left {
+        float: left;
+    }
+
+    .info-box.right {
+        float: right;
+    }
+
+    .box-header {
+        background-color: #0f1f38;
+        color: #ffffff;
+        font-size: 9pt;
+        font-weight: 700;
+        padding: 6px 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .box-content {
+        padding: 10px 12px;
+        font-size: 9pt;
+        background-color: #fdfdfd;
+    }
+
+    .box-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .box-table td {
+        padding: 3px 0;
+        vertical-align: top;
+    }
+
+    .box-label {
+        font-weight: 600;
+        color: #0f1f38;
+        width: 28%;
+    }
+
+    /* Tabla de Conceptos */
+    .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10px;
+    }
+
+    .items-table th {
+        background-color: #0f1f38;
+        color: #ffffff;
+        font-size: 9pt;
+        font-weight: 700;
+        padding: 8px 10px;
+        text-align: left;
+    }
+
+    .items-table th.center { text-align: center; }
+    .items-table th.right { text-align: right; }
+
+    .items-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #eef0f3;
+        font-size: 9pt;
+        vertical-align: middle;
+    }
+
+    .items-table tr:nth-child(even) td {
+        background-color: #f8f9fa;
+    }
+
+    .item-title {
+        font-weight: 700;
+        color: #0f1f38;
+        display: block;
+        margin-bottom: 2px;
+    }
+
+    .item-desc {
+        color: #666666;
+        font-size: 8.5pt;
+        display: block;
+    }
+
+    /* Botones y acciones de tabla */
+    .btn-delete {
+        background-color: #e74c3c;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        width: 22px;
+        height: 22px;
+        cursor: pointer;
+        font-weight: bold;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+    }
+
+    .btn-delete:hover {
+        background-color: #c0392b;
+    }
+
+    .btn-add-container {
+        margin-bottom: 25px;
+    }
+
+    .btn-add {
+        background-color: #0f1f38;
+        color: #ffffff;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 4px;
+        font-size: 8.5pt;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-add:hover {
+        background-color: #b55b32;
+    }
+
+    /* Inputs interactivos corregidos */
+    input.cant-input, input.precio-input, input.tax-input {
+        width: 100%;
+        border: 1px solid #dcdfe6;
+        border-radius: 4px;
+        padding: 5px 8px;
+        font-family: inherit;
+        font-size: 9pt;
+        color: #2c3e50;
+        background-color: #ffffff;
+        outline: none;
+        transition: border-color 0.2s, background-color 0.2s;
+    }
+
+    input.tax-input {
+        width: 50px;
+        text-align: center;
+        display: inline-block;
+        padding: 2px 4px;
+        font-weight: bold;
+    }
+
+    input.cant-input:focus, input.precio-input:focus, input.tax-input:focus {
+        border-color: #b55b32;
+        background-color: #fffaf8;
+    }
+
+    input.cant-input { text-align: center; }
+    input.precio-input { text-align: right; }
+
+    /* Ocultar flechas numéricas */
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    input[type=number] {
+        -moz-appearance: textfield;
+    }
+
+    /* Sección Inferior */
+    .bottom-section {
+        margin-bottom: 30px;
+    }
+
+    .notes-column {
+        width: 55%;
+        float: left;
+    }
+
+    .notes-title {
+        font-size: 9pt;
+        font-weight: 700;
+        color: #0f1f38;
+        text-transform: uppercase;
+        border-bottom: 1.5px solid #0f1f38;
+        padding-bottom: 3px;
+        margin-bottom: 6px;
+    }
+
+    .notes-text {
+        font-size: 8.5pt;
+        color: #444444;
+        margin-bottom: 15px;
+    }
+
+    .notes-list {
+        font-size: 8.5pt;
+        color: #444444;
+        padding-left: 15px;
+    }
+
+    .notes-list li {
+        margin-bottom: 4px;
+    }
+
+    .totals-column {
+        width: 40%;
+        float: right;
+    }
+
+    .totals-box {
+        width: 100%;
+        border: 1.5px solid #b55b32;
+        border-radius: 6px;
+        padding: 12px 15px;
+        background-color: #fffaf8;
+        margin-bottom: 25px;
+    }
+
+    .total-table {
+        width: 100%;
+        font-size: 9.5pt;
+        color: #0f1f38;
+        font-weight: 600;
+    }
+
+    .total-table td {
+        padding: 4px 0;
+    }
+
+    .total-table tr.grand-total td {
+        padding-top: 8px;
+        border-top: 1px dashed #b55b32;
+        font-size: 13pt;
+        font-weight: 800;
+        color: #b55b32;
+    }
+
+    .signature-area {
+        text-align: center;
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .signature-line {
+        border-top: 1px solid #0f1f38;
+        width: 80%;
+        margin: 0 auto 5px auto;
+    }
+
+    .signature-name {
+        font-size: 9pt;
+        font-weight: 700;
+        color: #0f1f38;
+    }
+
+    .signature-sub {
+        font-size: 8pt;
+        color: #b55b32;
+        font-weight: 600;
+    }
+
+    /* Pie de página */
+    .footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: #0f1f38;
+        color: #ffffff;
+        padding: 12px 45px;
+        font-size: 8pt;
+    }
+
+    .footer-col {
+        float: left;
+        width: 33.33%;
+        text-align: center;
+    }
+
+    /* Reglas exclusivas para Impresión / PDF */
+    @media print {
+        .btn-add-container, .no-print, .excel-import-panel {
+            display: none !important;
+        }
+
+        input.cant-input, input.precio-input, input.tax-input {
+            border: none !important;
+            background: transparent !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+        }
+
+        [contenteditable="true"]:hover {
+            background-color: transparent;
+        }
+    }
+</style>
+</head>
+<body>
+
+    <!-- Botón Flotante para Importar Excel -->
+    <div class="excel-import-panel no-print">
+        <span>Sincronizar Excel:</span>
+        <button class="btn-import" onclick="document.getElementById('excel-file-input').click()">Cargar desde COTIZADOR.xlsx</button>
+        <input type="file" id="excel-file-input" accept=".xlsx, .xls" onchange="importarExcel(event)">
+    </div>
+
+    <div class="top-bar"></div>
+
+    <!-- Header -->
+    <div class="header clearfix">
+        <div class="header-left">
+            <div class="doc-title" contenteditable="true">COTIZACIÓN</div>
+            <table class="meta-table">
+                <tr>
+                    <td class="meta-label" contenteditable="true">Cotización No.</td>
+                    <td class="meta-value" id="doc-folio" contenteditable="true">CT-2026-001</td>
+                </tr>
+                <tr>
+                    <td class="meta-label" contenteditable="true">Fecha de emisión:</td>
+                    <td class="meta-value" id="doc-fecha" contenteditable="true">05/09/2026</td>
+                </tr>
+                <tr>
+                    <td class="meta-label" contenteditable="true">Vigencia:</td>
+                    <td class="meta-value" contenteditable="true">30 días naturales</td>
+                </tr>
+                <tr>
+                    <td class="meta-label" contenteditable="true">Moneda:</td>
+                    <td class="meta-value" contenteditable="true">MXN – Peso Mexicano</td>
+                </tr>
+            </table>
+        </div>
+        <div class="header-right">
+            <img src="Curiel.png" alt="Logotipo Curiel Tech" class="logo-img">
+        </div>
+    </div>
+
+    <!-- Datos del Cliente y Proyecto -->
+    <div class="info-container clearfix">
+        <div class="info-box left">
+            <div class="box-header" contenteditable="true">DATOS DEL CLIENTE</div>
+            <div class="box-content">
+                <table class="box-table">
+                    <tr><td class="box-label" contenteditable="true">Cliente:</td><td id="client-name" contenteditable="true">Público General</td></tr>
+                    <tr><td class="box-label" contenteditable="true">Contacto:</td><td id="client-contact" contenteditable="true">Público General</td></tr>
+                    <tr><td class="box-label" contenteditable="true">Correo:</td><td id="client-email" contenteditable="true">contacto@cliente.com</td></tr>
+                    <tr><td class="box-label" contenteditable="true">Teléfono:</td><td id="client-phone" contenteditable="true">(55) 0000 0000</td></tr>
+                    <tr><td class="box-label" contenteditable="true">Dirección:</td><td id="client-address" contenteditable="true">Dirección del Cliente</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="info-box right">
+            <div class="box-header" contenteditable="true">INFORMACIÓN DEL PROYECTO</div>
+            <div class="box-content">
+                <table class="box-table">
+                    <tr><td class="box-label" contenteditable="true">Proyecto:</td><td id="project-name" contenteditable="true">Servicios de Infraestructura y Seguridad</td></tr>
+                    <tr><td class="box-label" contenteditable="true">Ejecutivo:</td><td id="project-executive" contenteditable="true">Equipo Curiel Tech</td></tr>
+                    <tr><td class="box-label" contenteditable="true">Correo:</td><td id="project-email" contenteditable="true">contacto@curieltech.com</td></tr>
+                    <tr><td class="box-label" contenteditable="true">Teléfono:</td><td id="project-phone" contenteditable="true">(56) 20191130</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Conceptos -->
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th class="center" style="width: 5%;">No.</th>
+                <th class="center" style="width: 12%;">Cantidad</th>
+                <th style="width: 46%;">Descripción</th>
+                <th class="right" style="width: 16%;">Precio Unitario</th>
+                <th class="right" style="width: 16%;">Importe</th>
+                <th class="center no-print" style="width: 5%;"></th>
+            </tr>
+        </thead>
+        <tbody id="items-body">
+            <tr>
+                <td class="center num-cell">1</td>
+                <td><input type="number" class="cant-input" value="1" min="0" oninput="calcularTotales()"></td>
+                <td>
+                    <span class="item-title" contenteditable="true">Servicio / Refacción Ejemplo</span>
+                    <span class="item-desc" contenteditable="true">Descripción detallada del servicio o producto.</span>
+                </td>
+                <td><input type="number" class="precio-input" value="0.00" step="0.01" oninput="calcularTotales()"></td>
+                <td class="right importe-cell">$0.00</td>
+                <td class="center no-print"><button class="btn-delete" onclick="eliminarFila(this)" title="Borrar fila">×</button></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="btn-add-container">
+        <button class="btn-add" onclick="agregarFila()">+ Agregar Concepto</button>
+    </div>
+
+    <!-- Sección Inferior -->
+    <div class="bottom-section clearfix">
+        <div class="notes-column">
+            <div class="notes-title" contenteditable="true">OBSERVACIONES</div>
+            <p class="notes-text" contenteditable="true">La presente cotización incluye todo lo descrito en esta propuesta. Cualquier cambio en el alcance podrá afectar el precio final.</p>
+
+            <div class="notes-title" contenteditable="true">TÉRMINOS Y CONDICIONES</div>
+            <ul class="notes-list">
+                <li contenteditable="true">Forma de pago: 50% de anticipo y 50% contra entrega.</li>
+                <li contenteditable="true">Los precios no incluyen IVA.</li>
+                <li contenteditable="true">Vigencia de la cotización: 30 días naturales.</li>
+                <li contenteditable="true">Tiempo estimado de entrega: De acuerdo con el plan de trabajo.</li>
+                <li contenteditable="true">Cualquier cambio en el alcance será cotizado por separado.</li>
+                <li contenteditable="true">Esta cotización no genera obligación hasta su aceptación formal.</li>
+            </ul>
+        </div>
+
+        <div class="totals-column">
+            <div class="totals-box">
+                <table class="total-table">
+                    <tr>
+                        <td contenteditable="true">SUBTOTAL</td>
+                        <td style="text-align: right;" id="subtotal-val">$0.00</td>
+                    </tr>
+                    <tr>
+                        <td>IVA (<input type="number" id="tax-rate" class="tax-input" value="16" min="0" max="100" oninput="calcularTotales()">%)</td>
+                        <td style="text-align: right;" id="iva-val">$0.00</td>
+                    </tr>
+                    <tr class="grand-total">
+                        <td contenteditable="true">TOTAL</td>
+                        <td style="text-align: right;" id="total-val">$0.00 MXN</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="signature-area">
+                <div class="signature-line"></div>
+                <div class="signature-name" contenteditable="true">Equipo Curiel Tech</div>
+                <div class="signature-sub" contenteditable="true">Consultoría Integral • Tecnología de Vanguardia</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pie de página con los datos actualizados -->
+    <div class="footer clearfix">
+        <div class="footer-col" style="text-align: left;" contenteditable="true">
+            <strong>Dirección:</strong> Priv. Emilio Carranza , Naucalpan De Juarez
+        </div>
+        <div class="footer-col" contenteditable="true">
+            <strong>Teléfonos:</strong> (56) 20191130
+        </div>
+        <div class="footer-col" style="text-align: right;" contenteditable="true">
+            <strong>WhatsApp:</strong> (56) 20191130
+        </div>
+    </div>
+
+    <!-- Lógica Interactiva y Cálculo Automático -->
+    <script>
+        function calcularTotales() {
+            const filas = document.querySelectorAll('#items-body tr');
+            let subtotal = 0;
+
+            filas.forEach((fila, index) => {
+                const numCell = fila.querySelector('.num-cell');
+                if (numCell) numCell.innerText = index + 1;
+
+                const cantInput = fila.querySelector('.cant-input');
+                const precioInput = fila.querySelector('.precio-input');
+                
+                const cant = parseFloat(cantInput.value) || 0;
+                const precio = parseFloat(precioInput.value) || 0;
+                
+                const importe = cant * precio;
+                
+                fila.querySelector('.importe-cell').innerText = '$' + importe.toLocaleString('es-MX', { 
+                    minimumFractionDigits: 2, 
+                    maximumFractionDigits: 2 
+                });
+                
+                subtotal += importe;
+            });
+
+            const taxInput = document.getElementById('tax-rate');
+            const porcentajeIva = parseFloat(taxInput.value) || 0;
+
+            const iva = subtotal * (porcentajeIva / 100);
+            const total = subtotal + iva;
+
+            const fmt = new Intl.NumberFormat('es-MX', { 
+                style: 'currency', 
+                currency: 'MXN',
+                minimumFractionDigits: 2 
+            });
+
+            document.getElementById('subtotal-val').innerText = fmt.format(subtotal);
+            document.getElementById('iva-val').innerText = fmt.format(iva);
+            document.getElementById('total-val').innerText = fmt.format(total) + ' MXN';
+        }
+
+        function agregarFila(titulo = "Nuevo Concepto", desc = "Descripción del servicio o producto...", cantidad = 1, precio = 0) {
+            const tbody = document.getElementById('items-body');
+            const tr = document.createElement('tr');
+            
+            tr.innerHTML = `
+                <td class="center num-cell"></td>
+                <td><input type="number" class="cant-input" value="${cantidad}" min="0" oninput="calcularTotales()"></td>
+                <td>
+                    <span class="item-title" contenteditable="true">${titulo}</span>
+                    <span class="item-desc" contenteditable="true">${desc}</span>
+                </td>
+                <td><input type="number" class="precio-input" value="${precio}" step="0.01" oninput="calcularTotales()"></td>
+                <td class="right importe-cell">$0.00</td>
+                <td class="center no-print"><button class="btn-delete" onclick="eliminarFila(this)" title="Borrar fila">×</button></td>
+            `;
+            
+            tbody.appendChild(tr);
+            calcularTotales();
+        }
+
+        function eliminarFila(btn) {
+            const fila = btn.closest('tr');
+            fila.remove();
+            calcularTotales();
+        }
+
+        // Función para importar directamente desde prueba 2_3.xlsx
+        function importarExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // Leer hoja "Cotizador"
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                // Mapear Encabezados
+                // Fila 2 de Excel (índice 1 en JSON)
+                if (json[1]) {
+                    if (json[1][1]) document.getElementById('client-name').innerText = json[1][1];    // Celda B2
+                    if (json[1][3]) document.getElementById('client-contact').innerText = json[1][3]; // Celda D2
+                    if (json[1][5]) document.getElementById('client-email').innerText = json[1][5];   // Celda F2
+                    if (json[1][7]) document.getElementById('client-phone').innerText = json[1][7];   // Celda H2
+                    if (json[1][9]) document.getElementById('client-address').innerText = json[1][9]; // Celda J2
+                    if (json[1][11]) document.getElementById('doc-fecha').innerText = json[1][11];    // Celda L2
+                }
+
+                // Fila 3 de Excel (índice 2 en JSON)
+                if (json[2]) {
+                    if (json[2][1]) document.getElementById('project-name').innerText = json[2][1];      // Celda B3
+                    if (json[2][3]) document.getElementById('project-executive').innerText = json[2][3]; // Celda D3
+                    if (json[2][5]) document.getElementById('project-email').innerText = json[2][5];     // Celda F3
+                    if (json[2][7]) document.getElementById('project-phone').innerText = json[2][7];     // Celda H3
+                    if (json[2][11]) document.getElementById('doc-folio').innerText = json[2][11];      // Celda L3
+                }
+
+                // Limpiar tabla actual de items
+                const tbody = document.getElementById('items-body');
+                tbody.innerHTML = '';
+
+                // Mapear los items (comienzan en fila 5 / índice 4)
+                let itemsEncontrados = 0;
+                for (let i = 4; i < json.length; i++) {
+                    const row = json[i];
+                    if (!row || row.length === 0 || row[0] === 'TOTALES GENERALES') break;
+
+                    const desc = row[1];
+                    const cant = parseFloat(row[3]) || 0;
+                    const precioVentaUnitario = parseFloat(row[7]) || 0; // Columna H (Precio Venta Unitario)
+
+                    if (desc || cant > 0 || precioVentaUnitario > 0) {
+                        agregarFila(desc || "Concepto " + (itemsEncontrados + 1), "Servicio / Refacción", cant, precioVentaUnitario);
+                        itemsEncontrados++;
+                    }
+                }
+
+                if (itemsEncontrados === 0) {
+                    agregarFila("Sin conceptos registrados", "Añada conceptos en el cotizador Excel", 1, 0);
+                }
+
+                calcularTotales();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        window.onload = calcularTotales;
+    </script>
+
+</body>
+</html>
